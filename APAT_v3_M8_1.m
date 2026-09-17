@@ -1,4 +1,4 @@
-classdef APAT_v3_M8_1 < matlab.apps.AppBase
+classdef APAT_v3_M8_1 < matlab.apps.AppBase  %1905-lines  % Loading Error: Nothing happens
 %APAT_V3_M8  Antenna Pattern Analysis Tool — release M8 (architecture rebuild of APAT_v3_M7_110_5).
 %
 %   Base MATLAB only (R2025a baseline (which support ), no toolboxes). One file, App Designer-style handles, same tabs and
@@ -23,8 +23,6 @@ classdef APAT_v3_M8_1 < matlab.apps.AppBase
 %     * Conventions live in Const / Meta and are listed in the Metadata table.
 %
 %   Run:  app = APAT_v3_M8;        Self-test (no UI):  APAT_v3_M8.selfTest
-
-% Loading Error: Nothing happens
 
     %% ============================================================ UI handles (App Designer style)
     properties (Access = public)
