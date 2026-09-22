@@ -1,4 +1,4 @@
-classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds array bounds. (@(c)sscanf(char(c{1}),'%f').' line 1292)"
+classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % FIXED: io_scan frequency extraction & line 328 Pats.Path initialization
 % APAT v3 Milestone 8 — one grid-native pattern, one derivation, one dispatcher, one layout helper.
 %
 %   SOURCE ─► PATTERN(Rev) ─► GEOMETRY ─► DERIVED(Params)      all stored in Pats(k)   (I13 build-then-commit)
@@ -187,7 +187,7 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
     end
 
     properties (Access = private)
-        Pats struct = struct([])        % pattern registry: {Name, File, Path, Source, Pattern, Geometry, Derived, Params, Stamp}
+        Pats struct = struct('Name', {}, 'File', {}, 'Path', {}, 'Source', {}, 'Pattern', {}, 'Geometry', {}, 'Derived', {}, 'Params', {}, 'NativeStep', {}, 'Stamp', {})
         Main double = 0                 % index into Pats shown on the Main tab (0 = nothing loaded)
         View struct = struct()          % widget snapshot of the last update (readConfig)
         Map struct = struct()           % display permutation / labels for the current View (geo_displayMap)
@@ -325,10 +325,10 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
                 % ---- commit: nothing above touched application state
                 app.Stamp = app.Stamp + 1; E.Stamp = app.Stamp;
                 if rung == 1
-                    k = find(strcmp({app.Pats.Path}, E.Path), 1); if isempty(k), k = numel(app.Pats) + 1; end
+                    k = []; if ~isempty(app.Pats), k = find(strcmp({app.Pats.Path}, E.Path), 1); end; if isempty(k), k = numel(app.Pats) + 1; end
                     app.Main = k;
                 end
-                app.Pats(app.Main) = E;
+                if isempty(app.Pats), app.Pats = E; else, app.Pats(app.Main) = E; end
                 app.applyChoices(rung); [V, prm] = app.readConfig(); %#ok<ASGLU>
             end
             if app.Main == 0, return; end
@@ -497,7 +497,7 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
             if strcmp(s.Key, key), return; end
             C = E.Derived.Cols.(V.Component); C = C(:, M.ColIdx); P = E.Pattern;
             [X, Y, Z] = app.viewCoords(s.Kind, P, M, C, app.Range.(g));
-            if isgraphics(s.Surf) && isequal(size(s.Surf.CData), size(C))
+            if ~isempty(s.Surf) && isgraphics(s.Surf) && isequal(size(s.Surf.CData), size(C))
                 set(s.Surf, 'XData', X, 'YData', Y, 'ZData', Z, 'CData', C);
             else
                 delete(s.Surf); s.Surf = surface(s.Axes, X, Y, Z, C, 'FaceColor', 'interp', 'EdgeColor', 'none', 'ContextMenu', app.Gfx.Menu);
@@ -560,7 +560,7 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
             [i, j] = ind2sub(size(E.Derived.Cols.(E.Derived.Total)), E.Derived.Peak.index); jj = find(M.ColIdx == j, 1);
             if isvector(X), x = X(jj); y = Y(i); else, x = X(i, jj); y = Y(i, jj); end   % axis vectors (contour/rect) or grids
             z = Z(i, jj);
-            if ~isgraphics(s.Mark)
+            if isempty(s.Mark) || ~isgraphics(s.Mark)
                 if isa(s.Axes, 'matlab.graphics.axis.PolarAxes'), s.Mark = polarplot(s.Axes, x, y, 'ko', 'MarkerSize', 5, 'MarkerFaceColor', 'k', 'HandleVisibility', 'off');
                 else, s.Mark = plot3(s.Axes, x, y, z, 'ko', 'MarkerSize', 5, 'MarkerFaceColor', 'k', 'HandleVisibility', 'off', 'Clipping', 'off'); end
                 s.Tip = datatip(s.Mark, 'DataIndex', 1, 'HandleVisibility', 'off', 'FontSize', 9);
@@ -577,7 +577,7 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
             s = app.Gfx.Full(k); if ~any(s.Kind == ["sphere" "polar"]), return; end
             S = app.Cut; y = app.traceValues(); y = y(:, 1); r = 1.02;
             if s.Kind == "polar", r = 1.01 * util_polarRadius(y, app.Range.(app.fullGroup())); end
-            if ~isgraphics(s.Over), s.Over = plot3(s.Axes, nan, nan, nan, 'k', 'LineWidth', 1.6, 'HandleVisibility', 'off'); end
+            if isempty(s.Over) || ~isgraphics(s.Over), s.Over = plot3(s.Axes, nan, nan, nan, 'k', 'LineWidth', 1.6, 'HandleVisibility', 'off'); end
             set(s.Over, 'XData', r .* sind(S.theta) .* cosd(S.phi), 'YData', r .* sind(S.theta) .* sind(S.phi), 'ZData', r .* cosd(S.theta), 'Visible', app.View.Overlay);
             app.Gfx.Full(k) = s;
         end
@@ -815,7 +815,7 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
             g.Defaults = {app.Single_Spinner_Loss.Value, app.Single_DropDown_RxPol.Value, app.Single_Spinner_Rw.Value, app.Single_Spinner_Pt.Value, app.Single_DropDown_Pt.Value, app.Single_Spinner_R.Value, app.Single_DropDown_R.Value};
             for k = 1:5
                 ax = app.(app.Views{k, 2}); app.Single_tabPlots.Children(k).Tag = app.Views{k, 1};   % tab tag ↔ Views row
-                s = struct('Axes', ax, 'Kind', string(app.Views{k, 4}), 'Bar', colorbar(ax), 'Surf', gobjects(0), 'Mark', gobjects(0), 'Tip', gobjects(0), 'Over', gobjects(0), 'Key', '');
+                s = struct('Axes', ax, 'Kind', string(app.Views{k, 4}), 'Bar', colorbar(ax), 'Surf', gobjects(1), 'Mark', gobjects(1), 'Tip', gobjects(1), 'Over', gobjects(1), 'Key', '');
                 ax.ContextMenu = g.Menu; hold(ax, 'on');
                 if k >= 3, ax.Interactions = [rotateInteraction, dataTipInteraction]; elseif k == 1, ax.Interactions = [zoomInteraction, dataTipInteraction]; end
                 if k == 3 || k == 4   % spatial views: fixed unit box, no axes, XYZ triad
@@ -912,8 +912,8 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
             [~, E.Name, ext] = fileparts(fp); E.File = [E.Name ext];
             E.Pattern = pat_build(S, 1); E.NativeStep = [E.Pattern.dTheta, E.Pattern.dPhi]; E.Geometry = geo_build(E.Pattern); E.Derived = pat_derive(E.Pattern, E.Geometry, prm); app.perf("Derive");
             app.Stamp = app.Stamp + 1; E.Stamp = app.Stamp;
-            k = find(strcmp({app.Pats.Path}, fp), 1); if isempty(k), k = numel(app.Pats) + 1; end
-            app.Pats(k) = E; app.covAddPattern(k);
+            k = []; if ~isempty(app.Pats), k = find(strcmp({app.Pats.Path}, fp), 1); end; if isempty(k), k = numel(app.Pats) + 1; end
+            if isempty(app.Pats), app.Pats = E; else, app.Pats(k) = E; end; app.covAddPattern(k);
         end
 
         function p = nodePath(app, n)
@@ -1068,7 +1068,7 @@ classdef APAT_v3_M8_10 < matlab.apps.AppBase %1793-lines % ERROR: "Index exceeds
         function covReset(app)
             for j = app.covJobs(), delete(j.NodeData.Query(isgraphics(j.NodeData.Query))); delete(j.NodeData.Line); end
             delete(app.Cov_TreeNode_Results.Children); delete(findobj(app.Cov_Axes, 'Type', 'datatip'));
-            if app.Main > 0, app.Pats = app.Pats(app.Main); app.Main = 1; else, app.Pats = struct([]); end   % drop entries only Coverage referenced
+            if app.Main > 0, app.Pats = app.Pats(app.Main); app.Main = 1; else, app.Pats(:) = []; end   % drop entries only Coverage referenced
             app.CovRunID = 0; app.Cov_Tabel.Data = table(); legend(app.Cov_Axes, 'off');
             app.Range.Auto.cov = true; app.Range.Auto.covX = true; app.applyRange("covX", [-40 10], true); app.applyRange("cov", [-40 10], true);
             app.covRefresh(); app.setStatus(app.Cov_StatusBar, 'Coverage workspace reset 🔄', true);
@@ -1288,8 +1288,8 @@ tok = regexp(L(isNum), '[-+]?(?:\d+\.?\d*|\.\d+)(?:[eEdD][-+]?\d+)?', 'match');
 n = cellfun(@numel, tok); nc = mode(n(n >= 4));
 if isempty(nc) || isnan(nc), error('APAT:NoData', 'No numeric data rows (≥ 4 columns) found in %s.', fp); end
 keep = n == nc; M = str2double(replace(vertcat(tok{keep}), ["d" "D"], "e"));
-fl = regexp(L, '^[#/*\s]*frequenc(?:y|ies)\b[^-+\d]*(.*)$', 'tokens', 'once', 'ignorecase'); isF = ~cellfun('isempty', fl);
-freqs = cellfun(@(c) sscanf(char(c{1}), '%f').', fl(isF), 'UniformOutput', false);
+fl = regexp(L, '(?i)freq[^0-9+-]*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eEdD][-+]?\d+)?[0-9.eE+-\s]*)', 'tokens', 'once'); isF = ~isNum & ~cellfun(@isempty, fl);
+freqs = cellfun(@(c) sscanf(char(c), '%f').', fl(isF), 'UniformOutput', false);
 b = cumsum(isF); rows = find(isNum); [~, ~, blk] = unique(b(rows(keep)));
 text = L(~isNum); other = cellfun(@(t) str2double(t), tok(~keep), 'UniformOutput', false);
 end
