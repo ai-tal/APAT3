@@ -1171,7 +1171,7 @@ classdef APAT_v3_M8_40 < matlab.apps.AppBase % %2000-lines
         function spanChanged(app, ~)
             % Display convention changed: the canonical data (and therefore peak/metrics) is unchanged — re-render only.
             if isempty(app.viewTbl), return; end
-            app.gridCache = struct(); app.tick("start", "Change angular span"); app.updateTables(); app.updateMetadata(); app.renderAll(); app.updateCutControl(); app.plotCut(); app.tick("Change angular span");
+            app.gridCache = struct(); app.tick("start", "Change angular span"); app.updateTables(); app.updateMetadata(); app.renderAll(); app.updateCutControl(); app.plotCut(); app.materialise(); app.tick("Change angular span");
         end
         function onComponentChanged(app, ~)
             if ~isempty(app.viewTbl), app.updateView(true, app.srcUD.isGainOnly); end   % gain-only: boresight may move with the column
@@ -1484,6 +1484,10 @@ classdef APAT_v3_M8_40 < matlab.apps.AppBase % %2000-lines
             if isgraphics(app.UIFigure), delete(app.UIFigure); end
         end
         function load(app, filePath)
+            arguments
+                app (1,1) APAT_v3_M8_40
+                filePath (1,1) string
+            end
             %LOAD Command-line alias for loadFile, matching the interactive Load button. ex: app.load("antenna_pattern_sample_XGTD.fz")
             if ~isfile(filePath), error('APAT:MissingFile', 'Pattern file does not exist: %s', filePath); end
             app.runOperation("Load pattern", @() app.loadFile(char(filePath)));
@@ -1776,8 +1780,8 @@ names = string(T.Properties.VariableNames); hasHeaders = ~all(startsWith(names, 
 coverageHeader = contains(lower(names(1)), "threshold") || any(contains(lower(names(2:end)), "coverage"));
 angName = contains(lower(strtrim(names(1))), "theta") || contains(lower(strtrim(names(1))), "phi");   % col 1 is NAMED as an angle
 % Coverage is a percentage-vs-threshold table; a cut is one monotone ANGLE plus its curves. 
-% Magnitude alone cannot tell them apart (a 0..90 cut and a threshold column are both monotone, small and positive), so a
-% column NAMED theta/phi settles it, and the 180 bound only guards unlabelled files.
+% Magnitude alone cannot tell them apart (a 0..90 cut and a threshold column are both monotone, small and positive), 
+% so a column NAMED theta/phi settles it, and the 180 bound only guards unlabelled files.
 if (fmt == "gain" || n < 6 || coverageHeader) && ~angName && all(c2 >= 0 & c2 <= 100) && issorted(c1, 'strictmonotonic') && max(c1) < 180
     if ~hasHeaders, T.Properties.VariableNames = [{'Threshold_dB'}, cellstr(compose('Coverage_%d', 1:n - 1))]; end
     out.rawTbl = T; out.userData.isCoverage = true; return
